@@ -10,9 +10,12 @@ usage() {
                 или best / worst
   -i ID         точный ID формата видео (из yt-dlp -F), вместо -q
   -f ФАЙЛ       файл со списком ссылок (по одной на строку, # - комментарий)
+  -u            установить/обновить yt-dlp до последней версии с GitHub
   -h            показать эту справку
 
 Примеры:
+  $0 -u                   (только обновить yt-dlp)
+  $0 -u -q 1080 URL       (обновить и сразу скачать)
   $0 -q 1080 https://youtu.be/XXXX
   $0 -q 720 -f list.txt
   $0 -i 137 https://youtu.be/XXXX
@@ -20,22 +23,28 @@ usage() {
 EOF
 }
 
-# Проверяем установлен ли yt-dlp
-if ! command -v yt-dlp &> /dev/null; then
-    echo "yt-dlp не установлен. Установите его:"
-    echo "sudo apt install yt-dlp"
-    exit 1
-fi
+# Установка/обновление yt-dlp (бинарник с GitHub вместо версии из apt)
+update_ytdlp() {
+    echo "Обновление yt-dlp..."
+    sudo apt remove -y yt-dlp
+    sudo curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+         -o /usr/local/bin/yt-dlp || { echo "Не удалось скачать yt-dlp."; return 1; }
+    sudo chmod a+rx /usr/local/bin/yt-dlp
+    hash -r
+    echo "Установлена версия: $(yt-dlp --version)"
+}
 
 QUALITY=""
 VIDEO_ID=""
 LIST_FILE=""
+DO_UPDATE=0
 
-while getopts "q:i:f:h" opt; do
+while getopts "q:i:f:uh" opt; do
     case $opt in
         q) QUALITY="$OPTARG" ;;
         i) VIDEO_ID="$OPTARG" ;;
         f) LIST_FILE="$OPTARG" ;;
+        u) DO_UPDATE=1 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
     esac
@@ -43,6 +52,25 @@ done
 shift $((OPTIND - 1))
 
 URL=$1
+
+# Обновление по запросу (-u)
+if [ "$DO_UPDATE" -eq 1 ]; then
+    update_ytdlp || exit 1
+    # Если больше ничего не задано - просто выходим
+    if [ -z "$URL" ] && [ -z "$LIST_FILE" ]; then
+        exit 0
+    fi
+fi
+
+# Проверяем установлен ли yt-dlp
+if ! command -v yt-dlp &> /dev/null; then
+    echo "yt-dlp не установлен."
+    read -p "Установить последнюю версию с GitHub? [Y/n]: " ANSWER
+    case "${ANSWER:-y}" in
+        [Yy]*|[Дд]*) update_ytdlp || exit 1 ;;
+        *) exit 1 ;;
+    esac
+fi
 
 # Собираем список ссылок
 URLS=()
