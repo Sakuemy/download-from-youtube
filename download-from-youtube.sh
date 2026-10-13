@@ -128,13 +128,28 @@ fi
 TOTAL=${#URLS[@]}
 FAILED=()
 N=0
+
+# Общий прогрессбар: [██████░░░░░░░░░░░░░░]  30% (3/10)
+overall_bar() {
+    local done=$1 total=$2 width=30
+    local filled=$(( done * width / total ))
+    local percent=$(( done * 100 / total ))
+    local bar="" i
+    for ((i = 0; i < width; i++)); do
+        if [ $i -lt $filled ]; then bar+="█"; else bar+="░"; fi
+    done
+    printf "Общий прогресс: [%s] %3d%% (%d/%d)\n" "$bar" "$percent" "$done" "$total"
+}
+
 for u in "${URLS[@]}"; do
     N=$((N + 1))
     echo ""
-    echo "[$N/$TOTAL] $u"
-    if ! yt-dlp -f "$FORMAT" --merge-output-format mp4 "$u"; then
+    echo "=== Видео $N из $TOTAL: $u"
+    # --progress: показывать полосу загрузки (скорость, размер, ETA) для каждого файла
+    if ! yt-dlp -f "$FORMAT" --merge-output-format mp4 --progress "$u"; then
         FAILED+=("$u")
     fi
+    overall_bar "$N" "$TOTAL"
 done
 
 echo ""
